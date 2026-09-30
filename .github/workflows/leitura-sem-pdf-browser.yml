@@ -1,0 +1,86 @@
+name: Leitura sem visualizador PDF
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/leitura-sem-pdf-browser.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  converter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar extrator PDF
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+      - name: Converter resumos para HTML e integrar ao app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess, html, json, re
+          root=Path('prf-leitura-pdfs/prf-leitura-pdfs')
+          out=Path('leitura-data'); out.mkdir(exist_ok=True)
+          manifest=[]
+          for pdf in sorted(root.rglob('*.pdf')):
+              rel=pdf.relative_to(root)
+              subject=rel.parent.as_posix()
+              m=re.search(r'Aula\s*(\d+)', pdf.stem, re.I)
+              if not m: continue
+              aula=int(m.group(1))
+              r=subprocess.run(['pdftotext','-layout',str(pdf),'-'],capture_output=True,text=True,errors='replace')
+              text=r.stdout.replace('\f','\n\n')
+              lines=[]
+              for x in text.splitlines():
+                  x=x.strip()
+                  if not x: lines.append(''); continue
+                  # remove cabeçalhos/rodapés típicos sem apagar conteúdo
+                  if re.fullmatch(r'\d+',x): continue
+                  lines.append(x)
+              paras=[]; buf=[]
+              for x in lines:
+                  if not x:
+                      if buf: paras.append(' '.join(buf)); buf=[]
+                  else: buf.append(x)
+              if buf: paras.append(' '.join(buf))
+              body=[]
+              for t in paras:
+                  esc=html.escape(t)
+                  if len(t)<100 and (re.match(r'^(\d+[\.\)]|[A-ZÁÉÍÓÚÇ][A-ZÁÉÍÓÚÇ\s]{5,})',t) or t.endswith(':')):
+                      body.append('<h3>'+esc+'</h3>')
+                  elif re.match(r'^[•●▪◦\-]',t): body.append('<p class="bullet">'+esc+'</p>')
+                  else: body.append('<p>'+esc+'</p>')
+              fn=f'{len(manifest):03d}.html'
+              page='''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}html,body{margin:0;background:#061a33;color:#eef5ff;font:17px/1.65 system-ui}article{max-width:720px;margin:auto;padding:18px 18px 100px}h1{font-size:24px;color:#ffd52e;margin:8px 0 4px}h2{font-size:15px;color:#75c9ff;margin:0 0 24px}h3{font-size:20px;color:#fff;margin:28px 0 8px;padding-top:8px;border-top:1px solid #24517c}p{margin:10px 0}.bullet{padding-left:12px;border-left:3px solid #ffd52e}</style></head><body><article><h1>Aula %s</h1><h2>%s</h2>%s</article></body></html>'''%(str(aula).zfill(2),html.escape(subject),''.join(body))
+              (out/fn).write_text(page,encoding='utf-8')
+              manifest.append({'s':subject,'n':aula,'file':'leitura-data/'+fn})
+          (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False),encoding='utf-8')
+          print('Aulas convertidas:',len(manifest))
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          old='<section id="reading" class="panel hidden"><h2>📖 Leitura</h2><div class="card"><p>Biblioteca dos resumos em PDF, separada do controle do ciclo.</p><div class="studyEmbed"><iframe src="estudos.html#reading" title="Leitura"></iframe></div></div></section>'
+          new='''<section id="reading" class="panel hidden"><div id="readLibrary"><h2>📖 Leitura</h2><p style="color:#aabbd0">Aulas em formato de leitura do próprio aplicativo.</p><input id="readFind" placeholder="Buscar matéria ou aula" oninput="renderReadLibrary()"><div id="readList"></div></div><div id="readView" class="readView hidden"><div class="readBar"><button onclick="closeRead()">← Voltar</button><div><small id="readSub"></small><b id="readTitle"></b></div></div><iframe id="readContent" title="Aula"></iframe><div class="readNav"><button onclick="moveRead(-1)">← Anterior</button><button class="primary" onclick="finishRead()">✓ Concluir</button><button onclick="moveRead(1)">Próxima →</button></div></div></section>'''
+          if old not in s: raise SystemExit('Leitura antiga não encontrada')
+          s=s.replace(old,new)
+          css='''.readGroup{background:#0b2848;border:1px solid #24517c;border-radius:15px;margin:10px 0;padding:14px}.readLesson{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #24517c}.readLesson:first-of-type{margin-top:10px}.readLesson div{flex:1}.readLesson button,.readBar button,.readNav button{border:0;border-radius:10px;padding:10px;background:#173b60;color:#fff}.readLesson button{background:#ffd52e;color:#07182e;font-weight:900}.readView{position:fixed;z-index:3;top:55px;bottom:58px;left:50%;transform:translateX(-50%);width:min(560px,100%);background:#061a33;display:flex;flex-direction:column}.readView.hidden{display:none}.readBar{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #234667}.readBar div{min-width:0}.readBar small,.readBar b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.readBar small{color:#75c9ff}.readView iframe{border:0;width:100%;flex:1;background:#061a33}.readNav{display:grid;grid-template-columns:1fr 1.1fr 1fr;gap:6px;padding:8px;border-top:1px solid #234667}.readNav .primary{background:#ffd52e;color:#07182e}.readDone{opacity:.55}'''
+          s=s.replace('</style></head>',css+'</style></head>')
+          marker="const S=['Língua Portuguesa'"
+          js="""let READ=[],readCurrent=-1,readDone=JSON.parse(localStorage.getItem('prf-read-done')||'{}');
+async function loadRead(){if(READ.length)return;try{let r=await fetch('leitura-data/manifest.json?v='+Date.now());READ=await r.json()}catch(e){console.warn(e)}}
+async function renderReadLibrary(){await loadRead();let el=document.getElementById('readList');if(!el)return;let q=((document.getElementById('readFind')||{}).value||'').toLowerCase(),groups={};READ.forEach((x,i)=>{if((x.s+' aula '+String(x.n).padStart(2,'0')).toLowerCase().includes(q))(groups[x.s]||(groups[x.s]=[])).push([x,i])});el.innerHTML=Object.keys(groups).map(s=>'<div class=\"readGroup\"><b>'+s+'</b>'+groups[s].map(v=>{let x=v[0],i=v[1],k=x.s+'|'+x.n;return '<div class=\"readLesson '+(readDone[k]?'readDone':'')+'\"><div><b>Aula '+String(x.n).padStart(2,'0')+'</b><br><small>'+(readDone[k]?'Concluída':'Ler no aplicativo')+'</small></div><button onclick=\"openRead('+i+')\">Ler</button></div>'}).join('')+'</div>').join('')}
+function openRead(i){readCurrent=i;let x=READ[i];if(!x)return;document.getElementById('readLibrary').classList.add('hidden');document.getElementById('readView').classList.remove('hidden');document.getElementById('readSub').textContent=x.s;document.getElementById('readTitle').textContent='Aula '+String(x.n).padStart(2,'0');document.getElementById('readContent').src=x.file}
+function closeRead(){document.getElementById('readView').classList.add('hidden');document.getElementById('readLibrary').classList.remove('hidden');document.getElementById('readContent').src='about:blank';renderReadLibrary()}
+function moveRead(d){let x=READ[readCurrent];if(!x)return;let i=readCurrent+d;if(i>=0&&i<READ.length&&READ[i].s===x.s)openRead(i)}function finishRead(){let x=READ[readCurrent];if(!x)return;readDone[x.s+'|'+x.n]=true;localStorage.setItem('prf-read-done',JSON.stringify(readDone));moveRead(1)}
+"""+marker
+          s=s.replace(marker,js)
+          s=s.replace("if(n==='subjects')subjects();if(n==='stats')stats();if(n==='more')more()","if(n==='subjects')subjects();if(n==='stats')stats();if(n==='reading')renderReadLibrary();if(n==='more')more()")
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html leitura-data
+          git commit -m "Converte resumos em leitura nativa sem abrir PDF" || exit 0
+          git push
