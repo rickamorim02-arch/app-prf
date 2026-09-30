@@ -1,10 +1,6 @@
 name: Integrar Estudos na tela principal
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/integrar-estudos.yml'
   workflow_dispatch:
 
 permissions:
@@ -15,28 +11,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Integrar Ciclo e Leitura ao app principal
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('index.html')
-          s=p.read_text(encoding='utf-8')
-          if 'id="studies"' not in s:
-              s=s.replace('<section id="more" class="panel hidden">','<section id="studies" class="panel hidden"><h2>📖 Estudos</h2><div class="card"><h3>🔄 Ciclo de Estudos + Leitura</h3><p>Acompanhe as 107 aulas, marque o progresso e abra os resumos em PDF.</p><iframe src="estudos.html" title="Ciclo de Estudos e Leitura" style="width:100%;height:72vh;border:0;border-radius:14px;background:#061a33"></iframe></div></section><section id="more" class="panel hidden">')
-              s=s.replace('<button id="nst" onclick="tab(\'stats\')">📊<br>Desempenho</button>','<button id="nst" onclick="tab(\'stats\')">📊<br>Desempenho</button><button id="nes" onclick="tab(\'studies\')">📖<br>Estudos</button>')
-              old="document.getElementById(n==='feed'?'nf':n==='subjects'?'nsu':n==='stats'?'nst':'nmo').classList.add('on')"
-              new="document.getElementById(n==='feed'?'nf':n==='subjects'?'nsu':n==='stats'?'nst':n==='studies'?'nes':'nmo').classList.add('on')"
-              s=s.replace(old,new)
-              p.write_text(s,encoding='utf-8')
-          PY
-      - name: Commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html
-          if git diff --cached --quiet; then
-            echo "Integração já aplicada."
-          else
-            git commit -m "Integra Ciclo e Leitura na navegação principal"
-            git push
-          fi
+      - name: Informar modo manual
+        run: echo "Workflow legado desacoplado. A integracao atual ja esta no codigo principal."
