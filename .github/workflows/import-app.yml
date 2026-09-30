@@ -1,0 +1,24 @@
+name: Importar aplicativo PRF
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copiar aplicativo PRF
+        run: |
+          BASE="https://raw.githubusercontent.com/rickamorim02-arch/concurso-shorts-prf/main"
+          curl -fsSL "$BASE/index.html" -o index.html
+          curl -fsSL "$BASE/questoes.json" -o questoes.json
+          curl -fsSL "$BASE/manifest.webmanifest" -o manifest.webmanifest
+          curl -fsSL "$BASE/sw.js" -o sw.js
+          curl -fsSL "$BASE/icon.svg" -o icon.svg
+      - name: Publicar arquivos
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html questoes.json manifest.webmanifest sw.js icon.svg
+          git commit -m "Separar aplicativo PRF" || exit 0
+          git push
