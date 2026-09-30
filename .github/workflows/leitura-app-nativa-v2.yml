@@ -1,0 +1,45 @@
+name: Leitura nativa V2
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/leitura-app-nativa-v2.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  leitura:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reestruturar aba Leitura
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          old='<section id="reading" class="panel hidden"><h2>📖 Leitura</h2><div class="card"><p>Biblioteca dos resumos em PDF, separada do controle do ciclo.</p><div class="studyEmbed"><iframe src="estudos.html#reading" title="Leitura"></iframe></div></div></section>'
+          new='''<section id="reading" class="panel hidden"><div id="readingHome"><h2>📖 Leitura</h2><p class="readingLead">Escolha uma matéria e continue a leitura sem sair do aplicativo.</p><input id="readingSearch" placeholder="Buscar matéria ou aula" oninput="renderReadingHome()"><div id="readingHomeList"></div></div><article id="readingArticle" class="readingArticle hidden"><div class="readingArticleTop"><button onclick="closeReadingArticle()">← Voltar</button><div><small id="readingSubject"></small><b id="readingTitle"></b></div></div><div class="readingPaper"><div class="readingLoading" id="readingLoading">Carregando aula…</div><iframe id="readingFrame" title="Conteúdo da aula"></iframe></div><div class="readingActions"><button onclick="previousReading()">← Aula anterior</button><button class="primary" onclick="markReadingDone()">✓ Concluir aula</button><button onclick="nextReading()">Próxima →</button></div></article></section>'''
+          if old not in s: raise SystemExit('Bloco antigo da Leitura não encontrado')
+          s=s.replace(old,new)
+          css='''.readingLead{color:#aabbd0}.readingSubjectCard{background:#0b2848;border:1px solid #24517c;border-radius:16px;margin:10px 0;overflow:hidden}.readingSubjectHead{width:100%;border:0;background:transparent;color:#fff;padding:15px;text-align:left;display:flex;align-items:center;gap:10px}.readingSubjectHead .rsInfo{flex:1}.readingSubjectHead small{color:#9eb2c8}.readingLessons{border-top:1px solid #24517c;padding:0 14px}.readingLesson{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #173b60}.readingLesson:last-child{border-bottom:0}.readingLesson .rlInfo{flex:1}.readingLesson small{color:#9eb2c8}.readingLesson button{border:0;background:#ffd52e;color:#07182e;font-weight:900;padding:9px 13px;border-radius:10px}.readingArticle{position:fixed;z-index:20;inset:55px 0 58px;margin:auto;max-width:560px;background:#061a33;display:flex;flex-direction:column}.readingArticle.hidden{display:none}.readingArticleTop{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #234667;background:#061a33}.readingArticleTop button{border:0;background:#173b60;color:#fff;border-radius:10px;padding:10px}.readingArticleTop div{min-width:0}.readingArticleTop small,.readingArticleTop b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.readingArticleTop small{color:#75c9ff}.readingPaper{position:relative;flex:1;background:#fff;overflow:hidden}.readingPaper iframe{width:100%;height:100%;border:0;background:#fff}.readingLoading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#fff;color:#07182e;font-weight:800}.readingActions{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:6px;padding:8px;background:#061a33;border-top:1px solid #234667}.readingActions button{border:0;border-radius:10px;padding:10px 5px;background:#173b60;color:#fff;font-size:12px}.readingActions .primary{background:#ffd52e;color:#07182e}.readDone{opacity:.58}'''
+          s=s.replace('</style></head>',css+'</style></head>')
+          marker="const S=['Língua Portuguesa'"
+          js="""const READ_BASE='prf-leitura-pdfs/prf-leitura-pdfs/';const READ_DATA=[['Português',0,14],['Raciocínio Lógico-Matemática',0,19],['Informática',0,9],['Direito Constitucional',0,13],['Direito Administrativo',0,16],['Noções de Administração',0,16],['Legislação Relativa à Polícia Rodoviária Federal',1,2],['Ética e Conduta Pública',0,2],['Arquivologia',0,8]];let readingOpenSubject={};let currentReading=null;let readingProgress=JSON.parse(localStorage.getItem('prf-reading-progress')||'{}');
+function rpad(n){return String(n).padStart(2,'0')}function rkey(s,n){return s+'|'+n}function rfile(s,n){return READ_BASE+encodeURIComponent(s)+'/Aula%20'+rpad(n)+'.pdf'}function rlessons(d){let a=[];for(let n=d[1];n<=d[2];n++)a.push({s:d[0],n:n});return a}function saveReading(){localStorage.setItem('prf-reading-progress',JSON.stringify(readingProgress))}
+function toggleReadingSubject(i){readingOpenSubject[i]=!readingOpenSubject[i];renderReadingHome()}
+function renderReadingHome(){let el=document.getElementById('readingHomeList');if(!el)return;let q=((document.getElementById('readingSearch')||{}).value||'').toLowerCase();el.innerHTML=READ_DATA.map((d,i)=>{let ls=rlessons(d).filter(l=>(l.s+' aula '+rpad(l.n)).toLowerCase().includes(q));if(!ls.length)return'';let done=rlessons(d).filter(l=>readingProgress[rkey(l.s,l.n)]).length,total=rlessons(d).length,open=readingOpenSubject[i]||q;return '<div class=\"readingSubjectCard\"><button class=\"readingSubjectHead\" onclick=\"toggleReadingSubject('+i+')\"><div class=\"rsInfo\"><b>'+d[0]+'</b><br><small>'+done+'/'+total+' aulas lidas</small></div><b>'+(open?'−':'+')+'</b></button>'+(open?'<div class=\"readingLessons\">'+ls.map(l=>'<div class=\"readingLesson '+(readingProgress[rkey(l.s,l.n)]?'readDone':'')+'\"><div class=\"rlInfo\"><b>Aula '+rpad(l.n)+'</b><br><small>'+(readingProgress[rkey(l.s,l.n)]?'Concluída':'Disponível para leitura')+'</small></div><button onclick=\'openReading('+JSON.stringify(l.s)+','+l.n+')\'>Abrir</button></div>').join('')+'</div>':'')+'</div>'}).join('')}
+function openReading(s,n){currentReading={s:s,n:n};document.getElementById('readingHome').classList.add('hidden');document.getElementById('readingArticle').classList.remove('hidden');document.getElementById('readingSubject').textContent=s;document.getElementById('readingTitle').textContent='Aula '+rpad(n);let load=document.getElementById('readingLoading'),frame=document.getElementById('readingFrame');load.style.display='flex';frame.onload=()=>load.style.display='none';frame.src=rfile(s,n)+'#toolbar=0&navpanes=0&scrollbar=1&view=FitH'}
+function closeReadingArticle(){document.getElementById('readingArticle').classList.add('hidden');document.getElementById('readingHome').classList.remove('hidden');document.getElementById('readingFrame').src='about:blank';currentReading=null;renderReadingHome()}
+function readingSibling(step){if(!currentReading)return;let d=READ_DATA.find(x=>x[0]===currentReading.s);if(!d)return;let n=currentReading.n+step;if(n<d[1]||n>d[2])return;openReading(currentReading.s,n)}function previousReading(){readingSibling(-1)}function nextReading(){readingSibling(1)}function markReadingDone(){if(!currentReading)return;readingProgress[rkey(currentReading.s,currentReading.n)]=true;saveReading();nextReading()}
+"""+marker
+          s=s.replace(marker,js)
+          oldtab="if(n==='subjects')subjects();if(n==='stats')stats();if(n==='more')more()"
+          newtab="if(n==='subjects')subjects();if(n==='stats')stats();if(n==='reading')renderReadingHome();if(n==='more')more()"
+          s=s.replace(oldtab,newtab)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then echo "Sem alterações"; else git commit -m "Reestrutura Leitura como módulo nativo do app" && git push; fi
