@@ -1,0 +1,35 @@
+name: Separar Ciclo e Leitura
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/separar-ciclo-leitura.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  separar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Separar abas
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          old='<section id="studies" class="panel hidden"><h2>📖 Estudos</h2><div class="card"><h3>🔄 Ciclo de Estudos + Leitura</h3><p>Acompanhe as 107 aulas, marque o progresso e abra os resumos em PDF.</p><iframe src="estudos.html" title="Ciclo de Estudos e Leitura" style="width:100%;height:72vh;border:0;border-radius:14px;background:#061a33"></iframe></div></section>'
+          new='<section id="cycle" class="panel hidden"><h2>🔄 Ciclo de Estudos</h2><div class="card"><p>Organize o avanço das 107 aulas e acompanhe o progresso por disciplina.</p><iframe src="estudos.html#cycle" title="Ciclo de Estudos" style="width:100%;height:76vh;border:0;border-radius:14px;background:#061a33"></iframe></div></section><section id="reading" class="panel hidden"><h2>📖 Leitura</h2><div class="card"><p>Biblioteca dos resumos em PDF, separada do controle do ciclo.</p><iframe src="estudos.html#reading" title="Leitura dos resumos" style="width:100%;height:76vh;border:0;border-radius:14px;background:#061a33"></iframe></div></section>'
+          s=s.replace(old,new)
+          s=s.replace('<button id="nes" onclick="tab(\'studies\')">📖<br>Estudos</button>','<button id="ncy" onclick="tab(\'cycle\')">🔄<br>Ciclo</button><button id="nrd" onclick="tab(\'reading\')">📖<br>Leitura</button>')
+          s=s.replace("n==='studies'?'nes':'nmo'","n==='cycle'?'ncy':n==='reading'?'nrd':'nmo'")
+          p.write_text(s,encoding='utf-8')
+
+          p=Path('estudos.html'); s=p.read_text(encoding='utf-8')
+          s=s.replace("renderCycle();renderReading();\n</script>","function routeHash(){if(location.hash==='#reading')showTab('reading');else showTab('cycle')}\nwindow.addEventListener('hashchange',routeHash);\nrenderCycle();renderReading();routeHash();\n</script>")
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html estudos.html
+          if git diff --cached --quiet; then echo "Já separado."; else git commit -m "Separa Ciclo e Leitura em abas independentes" && git push; fi
