@@ -1,33 +1,15 @@
 name: Ciclo escolher aula
+
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/ciclo-escolher-aula.yml']
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   ajustar:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Adicionar seletor de aulas ao ciclo
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('estudos.html'); s=p.read_text(encoding='utf-8')
-          old="function button(l){return '<button class=\"open\" onclick=\\'openReader('+JSON.stringify(l)+')\\'>Ler</button>'}function renderCycle(){summary();document.getElementById('cycleList').innerHTML=DATA.map(d=>{let ls=lessons(...d),p=pct(ls),next=ls.find(x=>state(x.k)!=='done');return '<div class=\"card\"><b>'+d[0]+'</b><div class=\"progress\"><div class=\"bar\" style=\"width:'+p.p+'%\"></div></div><small>'+p.d+'/'+p.t+' concluídas • '+p.p+'%</small>'+(next?'<div class=\"lesson\"><div class=\"info\"><b>Próxima: Aula '+pad(next.n)+'</b></div>'+select(next)+button(next)+'</div>':'<p>✅ Disciplina concluída</p>')+'</div>'}).join('')}"
-          new="""function button(l){return '<button class=\"open\" onclick=\\'openReader('+JSON.stringify(l)+')\\'>Ler</button>'}
-function cycleLessonRow(l){return '<div class=\"lesson '+(state(l.k)==='done'?'done':'')+'\"><div class=\"info\"><b>Aula '+pad(l.n)+'</b><br><small>'+({todo:'Não iniciada',doing:'Estudando',done:'Concluída'}[state(l.k)])+'</small></div>'+select(l)+'</div>'}
-function toggleCycleLessons(id){let e=document.getElementById(id);if(e)e.classList.toggle('hidden')}
-function renderCycle(){summary();document.getElementById('cycleList').innerHTML=DATA.map((d,i)=>{let ls=lessons(...d),p=pct(ls),next=ls.find(x=>state(x.k)!=='done'),id='cycle-lessons-'+i;return '<div class=\"card\"><b>'+d[0]+'</b><div class=\"progress\"><div class=\"bar\" style=\"width:'+p.p+'%\"></div></div><small>'+p.d+'/'+p.t+' concluídas • '+p.p+'%</small>'+(next?'<div class=\"lesson\"><div class=\"info\"><b>Próxima sugerida: Aula '+pad(next.n)+'</b></div>'+select(next)+'</div>':'<p>✅ Disciplina concluída</p>')+'<button class=\"open\" style=\"width:100%;margin-top:10px\" onclick=\"toggleCycleLessons(\\''+id+'\\')\">Escolher aula</button><div id=\"'+id+'\" class=\"hidden\" style=\"margin-top:8px\">'+ls.map(cycleLessonRow).join('')+'</div></div>'}).join('')}"""
-          if old not in s: raise SystemExit('renderCycle esperado não encontrado')
-          s=s.replace(old,new)
-          p.write_text(s,encoding='utf-8')
-          PY
-      - name: Commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add estudos.html
-          if git diff --cached --quiet; then echo "Sem alterações"; else git commit -m "Permite escolher e marcar qualquer aula no ciclo" && git push; fi
+      - name: Informar modo manual
+        run: echo "Workflow legado desacoplado. Execute manualmente apenas quando for necessário reconstruir o seletor de aulas."
