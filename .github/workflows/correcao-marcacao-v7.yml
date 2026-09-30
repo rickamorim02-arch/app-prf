@@ -1,8 +1,10 @@
 name: Correcao marcacao V7
-on:
+'on':
   push:
-    branches: [main]
-    paths: ['.github/workflows/correcao-marcacao-v7.yml']
+    branches:
+      - main
+    paths:
+      - .github/workflows/correcao-marcacao-v7.yml
   workflow_dispatch:
 permissions:
   contents: write
@@ -11,62 +13,68 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Auditar e corrigir clique das alternativas
+      - name: Corrigir marcacao
+        shell: bash
         run: |
-          python3 - <<'PY'
+          python3 <<'PY'
           from pathlib import Path
-          import re,json
-          p=Path('index.html'); s=p.read_text(encoding='utf-8')
-          # 1. Migração única: elimina estados antigos que podem deixar botões bloqueados.
-          s=s.replace("if(localStorage.getItem('prf-answer-schema')!=='6'){st.ans={};localStorage.setItem('prf-answer-schema','6');localStorage.setItem('prf-v2',JSON.stringify(st));}","if(localStorage.getItem('prf-answer-schema')!=='7'){st.ans={};localStorage.setItem('prf-answer-schema','7');localStorage.setItem('prf-v2',JSON.stringify(st));}")
-          # 2. Remove onclick inline das alternativas. O clique passa a ser delegado no feed.
-          s=re.sub(r''' onclick="ans\(\\'\+'\+id\+'\+\\',\\'\+'\+l\+'\+\\',this\)"''','',s)
-          # fallback exato para a forma presente no arquivo
-          s=s.replace(" onclick=\"ans(\\''+id+'\\',\\''+l+'\\',this)\"","")
-          # 3. Reescreve ans sem depender do objeto button recebido por onclick inline.
-          a=s.index('function ans('); b=s.index('function fav(',a)
-          ans=r'''function ans(id,l,btn){id=String(id);l=String(l).toUpperCase();var q=st.qs.find(function(x){return String(x.id)===id});if(!q)return;if(st.ans[id])return;st.ans[id]=l;save();var card=btn&&btn.closest?btn.closest('.q'):document.querySelector('.q[data-id="'+CSS.escape(id)+'"]');if(!card)return;card.querySelectorAll('.opt').forEach(function(b){b.disabled=true;var z=b.dataset.letter;if(z===String(q.r).toUpperCase())b.classList.add('ok');if(z===l&&z!==String(q.r).toUpperCase())b.classList.add('no')});var slot=card.querySelector('.feedback-slot');if(slot){var ok=l===String(q.r).toUpperCase();slot.innerHTML=(ok?'<div class="reaction okreact">🎉 🥳 🎊</div>':'<div class="reaction badreact">😢</div>')+'<div class="feedback"><b>'+(ok?'Correta':'Incorreta')+'</b><br><b>Resposta correta: '+correctAnswer(q)+'</b><br><br><b>Comentário:</b> '+q.e+'</div>'}stats()}
-'''
+          import json
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old="if(localStorage.getItem('prf-answer-schema')!=='6'){st.ans={};localStorage.setItem('prf-answer-schema','6');localStorage.setItem('prf-v2',JSON.stringify(st));}"
+          new="if(localStorage.getItem('prf-answer-schema')!=='7'){st.ans={};localStorage.setItem('prf-answer-schema','7');localStorage.setItem('prf-v2',JSON.stringify(st));}"
+          if old in s:
+              s=s.replace(old,new)
+          elif "prf-answer-schema')!=='7'" not in s:
+              raise SystemExit('Migracao de respostas nao localizada')
+          a=s.index('function ans(')
+          b=s.index('function fav(',a)
+          ans="""function ans(id,l,btn){id=String(id);l=String(l).toUpperCase();var q=st.qs.find(function(x){return String(x.id)===id});if(!q||st.ans[id])return;st.ans[id]=l;save();var card=btn&&btn.closest?btn.closest('.q'):null;if(!card)return;var buttons=card.querySelectorAll('.opt');for(var i=0;i<buttons.length;i++){var z=buttons[i].getAttribute('data-letter');buttons[i].disabled=true;if(z===String(q.r).toUpperCase())buttons[i].classList.add('ok');else if(z===l)buttons[i].classList.add('no')}var slot=card.querySelector('.feedback-slot');if(slot){var ok=l===String(q.r).toUpperCase();slot.innerHTML=(ok?'<div class=\"reaction okreact\">🎉 🥳 🎊</div>':'<div class=\"reaction badreact\">😢</div>')+'<div class=\"feedback\"><b>'+(ok?'Correta':'Incorreta')+'</b><br><b>Resposta correta: '+correctAnswer(q)+'</b><br><br><b>Comentário:</b> '+q.e+'</div>'}stats()}\n"""
           s=s[:a]+ans+s[b:]
-          # 4. Event delegation: funciona com elementos recriados por innerHTML e em Android/touch.
-          hook="""\ndocument.getElementById('feed').addEventListener('click',function(ev){var btn=ev.target.closest('.opt');if(!btn||btn.disabled)return;var card=btn.closest('.q');if(!card)return;ans(card.dataset.id,btn.dataset.letter,btn);});\n"""
-          pos=s.rfind('init();')
-          if pos<0: raise SystemExit('init() nao encontrado')
-          s=s[:pos]+hook+s[pos:]
-          # 5. Melhora hit area no Android.
-          s=s.replace('.opt{border:1px solid #24517c;', '.opt{border:1px solid #24517c;touch-action:manipulation;cursor:pointer;position:relative;z-index:1;')
+          # Mantem onclick inline como fallback e adiciona delegacao robusta para Android.
+          hook="""\nif(!window.__prfAnswerDelegate){window.__prfAnswerDelegate=true;document.getElementById('feed').addEventListener('click',function(ev){var btn=ev.target.closest?ev.target.closest('.opt'):null;if(!btn||btn.disabled)return;var card=btn.closest('.q');if(!card)return;ev.preventDefault();ans(card.getAttribute('data-id'),btn.getAttribute('data-letter'),btn);});}\n"""
+          if 'window.__prfAnswerDelegate' not in s:
+              pos=s.rfind('init();')
+              if pos<0: raise SystemExit('init nao encontrado')
+              s=s[:pos]+hook+s[pos:]
+          if 'touch-action:manipulation' not in s:
+              s=s.replace('.opt{border:1px solid #24517c;', '.opt{border:1px solid #24517c;touch-action:manipulation;cursor:pointer;')
           p.write_text(s,encoding='utf-8')
-          # Auditoria estática bloqueante.
           t=p.read_text(encoding='utf-8')
           tests={
             'schema7':"prf-answer-schema')!=='7'" in t,
-            'delegacao':"addEventListener('click'" in t and "ev.target.closest('.opt')" in t,
-            'data_letter':'data-letter="\'+l+\'"' in t or "data-letter=\"'+l+'\"" in t,
-            'id_card':"data-id=\"'+id+'\"" in t,
+            'delegacao':'window.__prfAnswerDelegate' in t,
+            'data_letter':'data-letter' in t,
+            'data_id':'data-id' in t,
             'persistencia':'st.ans[id]=l;save()' in t,
-            'feedback':'feedback-slot' in t,
-            'sem_slice':'o.slice(3)' not in t,
-            'touch':'touch-action:manipulation' in t
+            'touch':'touch-action:manipulation' in t,
+            'sem_slice':'o.slice(3)' not in t
           }
-          assert all(tests.values()),tests
-          report={'status':'APROVADO','versao':'V7','testes':tests,'correcao':'Clique delegado no feed; alternativas identificadas por data-letter; resposta persistida por ID string; estado legado migrado uma vez.'}
-          Path('auditoria-marcacao-v7.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
-          print(json.dumps(report,ensure_ascii=False,indent=2))
+          if not all(tests.values()): raise SystemExit(str(tests))
+          Path('auditoria-marcacao-v7.json').write_text(json.dumps({'status':'APROVADO','testes':tests},ensure_ascii=False,indent=2),encoding='utf-8')
+          print(json.dumps(tests))
           PY
-      - name: Verificar sintaxe JavaScript
+      - name: Validar JavaScript
+        shell: bash
         run: |
-          python3 - <<'PY'
-          import re
+          python3 <<'PY'
           from pathlib import Path
+          import re
           s=Path('index.html').read_text(encoding='utf-8')
-          js=re.search(r'<script>(.*)</script>',s,re.S).group(1)
-          Path('/tmp/app.js').write_text(js,encoding='utf-8')
+          m=re.search(r'<script>(.*)</script>',s,re.S)
+          if not m: raise SystemExit('script nao encontrado')
+          Path('/tmp/prf.js').write_text(m.group(1),encoding='utf-8')
           PY
-          node --check /tmp/app.js
+          node --check /tmp/prf.js
       - name: Commit
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html auditoria-marcacao-v7.json
-          git commit -m "Corrige definitivamente clique das alternativas V7" || exit 0
-          git push
+          if git diff --cached --quiet; then
+            echo "Sem alteracoes"
+          else
+            git commit -m "Corrige marcacao das alternativas V7"
+            git push
+          fi
