@@ -1,0 +1,8 @@
+{
+  "status": "APROVADO",
+  "questoes": 3000,
+  "comentarios_em_alternativas": 0,
+  "alternativas_maximas": 5,
+  "gabaritos_fora_da_faixa": 0,
+  "marcacao": "A-E por indice; IDs normalizados"
+}
