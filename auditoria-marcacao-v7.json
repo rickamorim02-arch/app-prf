@@ -1,0 +1,12 @@
+{
+  "status": "APROVADO",
+  "testes": {
+    "schema7": true,
+    "delegacao": true,
+    "data_letter": true,
+    "data_id": true,
+    "persistencia": true,
+    "touch": true,
+    "sem_slice": true
+  }
+}
