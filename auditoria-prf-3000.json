@@ -1,0 +1,20 @@
+{
+  "total": 3000,
+  "unique_normalized_questions": 3000,
+  "subjects": {
+    "Administração": 685,
+    "Informática": 358,
+    "Raciocínio Lógico": 183,
+    "Direito Constitucional": 352,
+    "Língua Portuguesa": 221,
+    "Arquivologia": 334,
+    "Ética e Conduta Pública": 109,
+    "Legislação relativa à PRF": 45,
+    "Direito Administrativo": 713
+  },
+  "invalid_answer": 0,
+  "missing_source": 0,
+  "non_original": 0,
+  "duplicate_ids": 0,
+  "duplicate_normalized_questions": 0
+}
