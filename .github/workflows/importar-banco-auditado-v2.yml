@@ -1,0 +1,41 @@
+name: Importar banco PRF auditado V2
+on:
+  push:
+    branches: [main]
+    paths: ['questoes-prf-3000-auditado-v2.zip']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  importar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar e importar
+        run: |
+          rm -rf /tmp/prf-v2 && mkdir -p /tmp/prf-v2
+          unzip -o questoes-prf-3000-auditado-v2.zip -d /tmp/prf-v2
+          python3 - <<'PY'
+          import json,re,shutil
+          p='/tmp/prf-v2/questoes-prf-3000-auditado-v2.json'
+          d=json.load(open(p,encoding='utf-8')); q=d.get('questions',[])
+          assert len(q)==3000, len(q)
+          norm=lambda s: re.sub(r'[^a-z0-9]+',' ',s.lower()).strip()
+          assert len({norm(x['q']) for x in q})==3000
+          for x in q:
+              assert x.get('e') and x['e']!='Gabarito conforme o material original.' and len(x['e'])>=30
+              assert x.get('source_pdf') and x.get('source_package')
+              letters={str(o).strip()[0].upper() for o in x.get('o',[]) if str(o).strip()}
+              assert x.get('r') in letters, (x.get('id'),x.get('r'),letters)
+              assert not re.search(r'coment[aá]rios?\s*:',x.get('q',''),re.I)
+          shutil.copyfile(p,'questoes.json')
+          shutil.copyfile('/tmp/prf-v2/auditoria-prf-3000-v2.json','auditoria-prf-3000-v2.json')
+          print('Banco V2 validado: 3000 questões, comentários completos, sem duplicatas e gabaritos compatíveis.')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add questoes.json auditoria-prf-3000-v2.json
+          git commit -m "Publica banco PRF reanalisado com comentários completos" || exit 0
+          git push
