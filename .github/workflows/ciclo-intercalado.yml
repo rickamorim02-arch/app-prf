@@ -1,39 +1,15 @@
 name: Ciclo PRF intercalado
+
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/ciclo-intercalado.yml']
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   ciclo:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Criar ciclo intercalado
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('estudos.html'); s=p.read_text(encoding='utf-8')
-          s=s.replace('.done{opacity:.65}', '.done{opacity:.65}.cycleHero{background:linear-gradient(135deg,#0b2848,#10395f);border:1px solid #2d608d;border-radius:16px;padding:15px;margin:10px 0}.cycleHero h3{margin:0 0 5px}.cycleNow{font-size:18px;font-weight:900;color:#ffd52e}.cycleSteps{display:flex;gap:6px;overflow:auto;padding:5px 0 10px}.cycleStep{min-width:125px;background:#07182e;border:1px solid #24517c;border-radius:12px;padding:10px}.cycleStep.now{border-color:#ffd52e}.cycleStep.doneStep{opacity:.55}.cycleActions{display:flex;gap:8px;margin-top:10px}.cycleActions button{flex:1;border:0;border-radius:11px;padding:11px;font-weight:900}.primary{background:#ffd52e;color:#07182e}.secondary{background:#173b60;color:#fff}.hint{color:#9eb2c8;font-size:13px}')
-          s=s.replace('<p>Avance aula por aula. O ciclo preserva o seu progresso no aparelho.</p><div id="cycleList"></div>', '<p>O ciclo intercala matérias de perfis diferentes para reduzir a fadiga e evitar várias aulas semelhantes em sequência.</p><div id="smartCycle"></div><h3>Progresso por disciplina</h3><div id="cycleList"></div>')
-          needle="const ALL=DATA.flatMap(d=>lessons(...d));"
-          extra="""const ALL=DATA.flatMap(d=>lessons(...d));
-const CYCLE_ORDER=['Português','Direito Administrativo','Raciocínio Lógico-Matemática','Arquivologia','Direito Constitucional','Informática','Noções de Administração','Ética e Conduta Pública','Legislação Relativa à Polícia Rodoviária Federal'];
-let cyclePos=Number(localStorage.getItem('prf-cycle-pos')||0);
-function nextForSubject(s){let d=DATA.find(x=>x[0]===s);if(!d)return null;return lessons(...d).find(x=>state(x.k)!=='done')||null}
-function cycleQueue(){let q=[];for(let z=0;z<CYCLE_ORDER.length;z++){let s=CYCLE_ORDER[(cyclePos+z)%CYCLE_ORDER.length],l=nextForSubject(s);if(l)q.push(l)}return q}
-function advanceCycle(markDone){let q=cycleQueue();if(q.length&&markDone)setState(q[0].k,'done');cyclePos=(cyclePos+1)%CYCLE_ORDER.length;localStorage.setItem('prf-cycle-pos',cyclePos);renderCycle()}
-function renderSmartCycle(){let q=cycleQueue(),el=document.getElementById('smartCycle');if(!q.length){el.innerHTML='<div class=\"cycleHero\"><h3>🏁 Ciclo concluído</h3><p>Todas as aulas foram marcadas como concluídas.</p></div>';return}let n=q[0];el.innerHTML='<div class=\"cycleHero\"><div class=\"hint\">AGORA NO CICLO</div><div class=\"cycleNow\">'+n.s+'</div><div>Aula '+pad(n.n)+'</div><div class=\"cycleActions\">'+button(n)+'<button class=\"primary\" onclick=\"advanceCycle(true)\">✓ Concluir e avançar</button></div><button class=\"secondary\" style=\"width:100%;margin-top:8px\" onclick=\"advanceCycle(false)\">Pular por agora</button></div><div class=\"hint\">Próximas matérias — alternadas para variar o esforço mental</div><div class=\"cycleSteps\">'+q.slice(0,6).map((l,i)=>'<div class=\"cycleStep '+(i===0?'now':'')+'\"><small>'+(i===0?'Agora':'Depois')+'</small><br><b>'+l.s+'</b><br><small>Aula '+pad(l.n)+'</small></div>').join('')+'</div>'}
-"""
-          s=s.replace(needle,extra)
-          s=s.replace("function renderCycle(){summary();", "function renderCycle(){summary();renderSmartCycle();")
-          p.write_text(s,encoding='utf-8')
-          PY
-      - name: Commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add estudos.html
-          if git diff --cached --quiet; then echo "Ciclo já aplicado"; else git commit -m "Cria ciclo de estudos intercalado PRF" && git push; fi
+      - name: Informar modo manual
+        run: echo "Workflow legado desacoplado. Execute manualmente apenas quando for necessário reconstruir o ciclo."
