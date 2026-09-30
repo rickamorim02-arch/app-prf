@@ -1,0 +1,45 @@
+name: Importar banco PRF 3000
+on:
+  push:
+    branches: [main]
+    paths: ['questoes-prf-3000.zip']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  importar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar e extrair banco
+        run: |
+          set -e
+          test -f questoes-prf-3000.zip
+          rm -rf /tmp/prf3000 && mkdir -p /tmp/prf3000
+          unzip -o questoes-prf-3000.zip -d /tmp/prf3000
+          cp /tmp/prf3000/questoes.json questoes.json
+          cp /tmp/prf3000/auditoria-prf-3000.json auditoria-prf-3000.json
+          python3 - <<'PY'
+          import json,re,unicodedata
+          d=json.load(open('questoes.json'))
+          q=d.get('questions',[])
+          assert len(q)==3000, f'Esperadas 3000 questões; encontradas {len(q)}'
+          ids=[x.get('id') for x in q]
+          assert len(ids)==len(set(ids)), 'IDs duplicados'
+          def norm(s):
+              return re.sub(r'\W+',' ',unicodedata.normalize('NFKD',s).encode('ascii','ignore').decode().lower()).strip()
+          texts=[norm(x.get('q','')) for x in q]
+          assert len(texts)==len(set(texts)), 'Enunciados duplicados'
+          for i,x in enumerate(q,1):
+              assert x.get('derived_type')=='original_question', f'Questão {i} não é original'
+              assert x.get('source_pdf') and x.get('source_package'), f'Questão {i} sem fonte'
+              assert x.get('r') in [str(o)[0] for o in x.get('o',[])], f'Questão {i} com gabarito inválido'
+          print('AUDITORIA OK: 3000 questões originais, únicas, com fonte e gabarito válido.')
+          PY
+      - name: Publicar banco validado
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add questoes.json auditoria-prf-3000.json
+          git commit -m "Publica banco PRF auditado com 3000 questões originais" || exit 0
+          git push
