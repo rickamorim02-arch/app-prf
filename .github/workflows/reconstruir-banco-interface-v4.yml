@@ -1,8 +1,10 @@
 name: Reconstruir banco e interface V4
-on:
+'on':
   push:
-    branches: [main]
-    paths: ['.github/workflows/reconstruir-banco-interface-v4.yml']
+    branches:
+      - main
+    paths:
+      - .github/workflows/reconstruir-banco-interface-v4.yml
   workflow_dispatch:
 permissions:
   contents: write
@@ -12,45 +14,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Sanear banco e corrigir interface
+        shell: bash
         run: |
-          python3 - <<'PY'
+          python3 <<'PY'
           from pathlib import Path
           import json,re
-          bp=Path('questoes.json'); d=json.loads(bp.read_text(encoding='utf-8')); qs=d['questions']
-          changed=0; contaminated=0
+          bp=Path('questoes.json')
+          d=json.loads(bp.read_text(encoding='utf-8'))
+          qs=d['questions']
+          changed=0
+          contaminated=0
           for q in qs:
-              opts=[str(x).strip() for x in q.get('o',[])]
-              # Recupera comentário que foi anexado a uma alternativa durante extração.
-              clean=[]; recovered=[]
-              for o in opts:
+              clean=[]
+              recovered=[]
+              for raw in q.get('o',[]):
+                  o=str(raw).strip()
                   m=re.search(r'\s+Coment[aá]rio\s*:\s*',o,re.I)
                   if m:
                       contaminated+=1
-                      before=o[:m.start()].rstrip(); after=o[m.end():].strip()
+                      before=o[:m.start()].rstrip()
+                      after=o[m.end():].strip()
                       if before: clean.append(before)
                       if after: recovered.append(after)
-                  else: clean.append(o)
-              # Tudo depois das alternativas válidas A-E que parece explicação também pertence ao comentário.
-              valid=[]
-              for o in clean:
-                  if len(valid)<5:
-                      valid.append(o)
-                  else: recovered.append(o)
+                  else:
+                      clean.append(o)
+              valid=clean[:5]
+              recovered.extend(clean[5:])
               if recovered:
-                  old=str(q.get('e','')).strip()
                   rec=' '.join(recovered).strip()
-                  if rec and rec not in old: q['e']=(rec+' '+old).strip()
-                  q['o']=valid; changed+=1
-              # Remove prefixo A-E apenas quando presente; interface gera letras pelo índice.
-              q['o']=[re.sub(r'^\s*[A-E][\)\.\-:]\s*','',str(o),flags=re.I).strip() for o in q.get('o',[])]
-          bp.write_text(json.dumps(d,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
-          # Auditoria bloqueante de estrutura.
-          bad=[q['id'] for q in qs if any(re.search(r'Coment[aá]rio\s*:',str(o),re.I) for o in q.get('o',[]))]
+                  old=str(q.get('e','')).strip()
+                  if rec and rec not in old:
+                      q['e']=(rec+' '+old).strip()
+                  changed+=1
+              q['o']=[re.sub(r'^\s*[A-E][\)\.\-:]\s*','',o,flags=re.I).strip() for o in valid]
+          bad=[q.get('id') for q in qs if any(re.search(r'Coment[aá]rio\s*:',str(o),re.I) for o in q.get('o',[]))]
           assert not bad, ('comentario ainda em alternativa',bad[:20])
-          assert all(2<=len(q.get('o',[]))<=5 for q in qs), 'Quantidade inválida de alternativas'
-          # Corrige interface diretamente, sem depender de workflow anterior.
-          p=Path('index.html'); s=p.read_text(encoding='utf-8')
-          a=s.index('function correctAnswer(q)'); b=s.index('function setFeedMode',a)
+          assert all(2 <= len(q.get('o',[])) <= 5 for q in qs), 'Quantidade invalida de alternativas'
+          bp.write_text(json.dumps(d,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          a=s.index('function correctAnswer(q)')
+          b=s.index('function setFeedMode',a)
           block=r'''function optionLetter(i){return String.fromCharCode(65+i)}
 function optionText(o){return String(o==null?'':o).replace(/^\s*[A-E][\)\.\-:]\s*/i,'').trim()}
 function correctAnswer(q){var i='ABCDE'.indexOf(String(q.r).toUpperCase());return i>=0&&q.o&&q.o[i]!=null?optionText(q.o[i]):q.r}
@@ -60,19 +64,23 @@ function fav(id){id=String(id);st.fav[id]=!st.fav[id];save();render();stats()}
 '''
           s=s[:a]+block+s[b:]
           p.write_text(s,encoding='utf-8')
-          # valida JS estrutural e banco
           s=p.read_text(encoding='utf-8')
           assert "let l=o[0]" not in s
           assert "data-letter=\"'+l+'\"" in s
           assert "btn.closest('.q')" in s
-          report={'status':'CORRIGIDO','questoes':len(qs),'questoes_com_conteudo_recuperado':changed,'ocorrencias_comentario_em_alternativa':contaminated,'comentario_em_alternativa_apos_correcao':0,'marcacao':'letras A-E geradas pelo indice e clique via data-letter'}
+          report={'status':'CORRIGIDO','questoes':len(qs),'questoes_com_conteudo_recuperado':changed,'ocorrencias_comentario_em_alternativa':contaminated,'comentario_em_alternativa_apos_correcao':0,'marcacao':'A-E por indice e clique por data-letter'}
           Path('auditoria-integracao-v4.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
           print(json.dumps(report,ensure_ascii=False,indent=2))
           PY
-      - name: Commit
+      - name: Commit das correcoes
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html questoes.json auditoria-integracao-v4.json
-          git commit -m "Saneia alternativas comentarios e corrige marcacao" || exit 0
-          git push
+          if git diff --cached --quiet; then
+            echo "Sem alteracoes"
+          else
+            git commit -m "Saneia alternativas comentarios e corrige marcacao"
+            git push
+          fi
