@@ -1,0 +1,80 @@
+{
+  "status": "ATENÇÃO",
+  "total_testes": 14,
+  "falhas": 1,
+  "testes": [
+    {
+      "teste": "Timer removido da interface",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Timer removido do JavaScript",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Navegação principal completa",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Menu inferior completo",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Banco de questões referenciado",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Ciclo integrado",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Leitura sem link externo",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Sem links PDF diretos na tela principal",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Persistência de respostas",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Persistência do ciclo",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Leitura nativa gerada",
+      "ok": false,
+      "detalhe": "A conversão HTML deve existir no branch publicado"
+    },
+    {
+      "teste": "Banco contém 3000 questões",
+      "ok": true,
+      "detalhe": "3000 encontradas"
+    },
+    {
+      "teste": "IDs únicos",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "teste": "Campos essenciais das questões",
+      "ok": true,
+      "detalhe": ""
+    }
+  ],
+  "problemas": [
+    "Leitura nativa gerada: A conversão HTML deve existir no branch publicado"
+  ]
+}
