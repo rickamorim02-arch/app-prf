@@ -1,0 +1,12 @@
+{
+  "status": "APROVADO",
+  "questoes": 3000,
+  "duplicatas_normalizadas": 0,
+  "duplicatas_exatas": 0,
+  "comentarios_genericos": 0,
+  "comentarios_menores_30": 0,
+  "gabaritos_incompativeis": 0,
+  "sem_fonte": 0,
+  "comentario_vazado_enunciado": 0,
+  "nota": "Normalização Unicode corrigida: acentos são transliterados antes da comparação."
+}
