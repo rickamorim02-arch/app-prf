@@ -1,0 +1,40 @@
+name: Leitura no fluxo principal
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/leitura-fluxo-unico.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ajustar navegação interna
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          # Remove iframes das abas Ciclo/Leitura e cria uma camada interna única.
+          s=s.replace('<iframe src="estudos.html#cycle" title="Ciclo de Estudos" style="width:100%;height:76vh;border:0;border-radius:14px;background:#061a33"></iframe>','<div class="studyEmbed"><iframe src="estudos.html#cycle" title="Ciclo de Estudos"></iframe></div>')
+          s=s.replace('<iframe src="estudos.html#reading" title="Leitura dos resumos" style="width:100%;height:76vh;border:0;border-radius:14px;background:#061a33"></iframe>','<div class="studyEmbed"><iframe src="estudos.html#reading" title="Leitura"></iframe></div>')
+          s=s.replace('</style></head>','.studyEmbed{position:relative;height:calc(100vh - 155px);margin:0 -14px -14px}.studyEmbed iframe{width:100%;height:100%;border:0;background:#061a33}</style></head>')
+          p.write_text(s,encoding='utf-8')
+
+          p=Path('estudos.html'); s=p.read_text(encoding='utf-8')
+          # Quando embutido no app, remove cabeçalho redundante e faz a aula ocupar a própria área.
+          s=s.replace('</style></head>','body.embedded .top{display:none}body.embedded .page{padding:8px 10px 80px}body.embedded .app{max-width:none;padding-bottom:0}body.embedded .reader{position:absolute}</style></head>')
+          marker="window.addEventListener('hashchange',routeHash);"
+          insert="if(window.self!==window.top){document.body.classList.add('embedded')}\n"+marker
+          s=s.replace(marker,insert)
+          # Voltar fecha somente a aula e mantém usuário dentro da aba Leitura.
+          s=s.replace("function closeReader(){document.getElementById('reader').classList.remove('on');document.getElementById('readerFrame').src='';document.body.style.overflow=''}","function closeReader(){document.getElementById('reader').classList.remove('on');document.getElementById('readerFrame').src='';document.body.style.overflow='';if(location.hash!=='#reading')location.hash='reading'}")
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html estudos.html
+          if git diff --cached --quiet; then echo "Fluxo já integrado."; else git commit -m "Mantém aulas e leitura dentro da tela principal" && git push; fi
