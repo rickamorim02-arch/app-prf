@@ -1,0 +1,35 @@
+name: Extrair PDFs de leitura
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extrair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Extrair pacote de PDFs
+        run: |
+          set -e
+          test -f prf-leitura-pdfs.zip
+          rm -rf prf-leitura-pdfs
+          mkdir -p prf-leitura-pdfs
+          unzip -o prf-leitura-pdfs.zip -d prf-leitura-pdfs
+          echo "PDFs encontrados: $(find prf-leitura-pdfs -type f -iname '*.pdf' | wc -l)"
+
+      - name: Gravar PDFs no repositorio
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prf-leitura-pdfs
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteracao para gravar."
+          else
+            git commit -m "Extrai PDFs de leitura do PRF"
+            git push
+          fi
