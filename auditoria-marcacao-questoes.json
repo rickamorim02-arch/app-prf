@@ -1,0 +1,13 @@
+{
+  "status": "CORRIGIDO",
+  "causa": "IDs do banco V2 são numéricos, mas o onclick passava o ID como string; x.id===id não encontrava a questão.",
+  "correcao": "Comparação de IDs normalizada com String() antes da busca.",
+  "fluxos_auditados": [
+    "marcar alternativa",
+    "salvar resposta",
+    "correção visual",
+    "comentário",
+    "estatísticas",
+    "persistência local"
+  ]
+}
