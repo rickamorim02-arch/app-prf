@@ -1,0 +1,75 @@
+name: Remover timer e auditoria integradora
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/remover-timer-auditoria-integradora.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remover timer completamente
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          s=re.sub(r'\.studyTimer\{[^}]*\}','',s)
+          s=re.sub(r'<div id="studyTimer" class="studyTimer">.*?</div>','',s)
+          s=re.sub(r'let studyTimerInterval=null,studyStartedAt=0,studyElapsed=0,studyRunning=false;\s*','',s)
+          s=re.sub(r'function fmtTime\(ms\)\{.*?\}\s*function updateStudyTimer\(\)\{.*?\}\s*function startStudyTimer\(\)\{.*?\}\s*function pauseStudyTimer\(\)\{.*?\}\s*','',s,flags=re.S)
+          s=s.replace(';save()}catch(err){console.warn(\'Usando banco salvo no aparelho.\',err)}render();more();startStudyTimer()',';save()}catch(err){console.warn(\'Usando banco salvo no aparelho.\',err)}render();more()')
+          s=re.sub(r"let timer=document\.getElementById\('studyTimer'\);let timerTab=\(n==='feed'\|\|n==='reading'\);if\(timer\)timer\.style\.display=timerTab\?'block':'none';if\(timerTab\)startStudyTimer\(\);else pauseStudyTimer\(\);",'',s)
+          s=s.replace('cronômetro geral e desempenho','desempenho e revisão')
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Auditoria integradora e correções seguras
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re,sys
+          idx=Path('index.html').read_text(encoding='utf-8')
+          est=Path('estudos.html').read_text(encoding='utf-8') if Path('estudos.html').exists() else ''
+          issues=[]; checks=[]
+          def check(name,ok,detail=''):
+              checks.append({'teste':name,'ok':bool(ok),'detalhe':detail})
+              if not ok: issues.append(name+((': '+detail) if detail else ''))
+          check('Timer removido da interface','studyTimer' not in idx)
+          check('Timer removido do JavaScript',not any(x in idx for x in ['startStudyTimer','pauseStudyTimer','updateStudyTimer','studyElapsed']))
+          check('Navegação principal completa',all(('id="'+x+'"') in idx for x in ['feed','subjects','stats','cycle','reading','more']))
+          check('Menu inferior completo',all(('id="'+x+'"') in idx for x in ['nf','nsu','nst','ncy','nrd','nmo']))
+          check('Banco de questões referenciado',"fetch('questoes.json" in idx)
+          check('Ciclo integrado','estudos.html#cycle' in idx)
+          check('Leitura sem link externo', 'target="_blank"' not in idx)
+          check('Sem links PDF diretos na tela principal','.pdf" target=' not in idx and ".pdf' target=" not in idx)
+          check('Persistência de respostas',"localStorage.setItem('prf-v2'" in idx)
+          check('Persistência do ciclo',"localStorage.setItem('prf-study-cycle'" in est)
+          # Detecta se a versão nativa de leitura já foi materializada pelo workflow anterior.
+          native=(Path('leitura-data/manifest.json').exists() and 'readContent' in idx)
+          check('Leitura nativa gerada',native,'A conversão HTML deve existir no branch publicado')
+          # Valida banco se disponível.
+          if Path('questoes.json').exists():
+              try:
+                  data=json.loads(Path('questoes.json').read_text(encoding='utf-8'))
+                  qs=data.get('questions',[])
+                  check('Banco contém 3000 questões',len(qs)==3000,f'{len(qs)} encontradas')
+                  ids=[str(q.get('id','')) for q in qs]
+                  check('IDs únicos',len(ids)==len(set(ids)))
+                  check('Campos essenciais das questões',all(q.get('q') and isinstance(q.get('o'),list) and q.get('r') and q.get('s') for q in qs))
+              except Exception as e: check('JSON do banco válido',False,str(e))
+          report={'status':'APROVADO' if not issues else 'ATENÇÃO','total_testes':len(checks),'falhas':len(issues),'testes':checks,'problemas':issues}
+          Path('auditoria-integradora.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+          print(json.dumps(report,ensure_ascii=False,indent=2))
+          # Timer é requisito bloqueante; demais achados ficam documentados para não quebrar o app automaticamente.
+          if any('Timer removido' in x for x in issues): sys.exit(1)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html auditoria-integradora.json
+          git commit -m "Remove timer e registra auditoria integradora" || exit 0
+          git push
