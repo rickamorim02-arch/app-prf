@@ -1,0 +1,87 @@
+name: Reparo direto V5
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/reparo-direto-v5.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  reparar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restaurar sanear e corrigir
+        shell: bash
+        run: |
+          set -e
+          rm -rf /tmp/prf && mkdir /tmp/prf
+          unzip -o questoes-prf-3000-auditado-v2.zip -d /tmp/prf >/dev/null
+          python3 - <<'PY'
+          import json,re,pathlib
+          src=pathlib.Path('/tmp/prf/questoes-prf-3000-auditado-v2.json')
+          d=json.loads(src.read_text(encoding='utf-8')); qs=d['questions']
+          for n,q in enumerate(qs,1):
+              opts=[]; recovered=[]
+              for raw in q.get('o',[]):
+                  o=str(raw).strip(); m=re.search(r'\s+Coment[aá]rio\s*:\s*',o,re.I)
+                  if m:
+                      if o[:m.start()].strip(): opts.append(o[:m.start()].strip())
+                      if o[m.end():].strip(): recovered.append(o[m.end():].strip())
+                  else: opts.append(o)
+              if len(opts)>5:
+                  seq=None
+                  for j in range(len(opts)-4):
+                      got=[]
+                      for k in range(5):
+                          m=re.match(r'^\s*([A-E])[\)\.\-:]\s*',opts[j+k],re.I); got.append(m.group(1).upper() if m else None)
+                      if got==list('ABCDE'): seq=j
+                  if seq is not None:
+                      pre=opts[:seq]
+                      if pre: q['q']=(q['q'].rstrip()+' '+' '.join(pre)).strip()
+                      opts=opts[seq:seq+5]
+                  else: opts=opts[:5]
+              if recovered:
+                  rec=' '.join(recovered); old=str(q.get('e','')).strip()
+                  if rec not in old: q['e']=(rec+' '+old).strip()
+              e=str(q.get('e','')); m=re.search(r'\n\n\d+\.\s*[\u200b]?\(',e)
+              if m: q['e']=e[:m.start()].strip()
+              q['o']=[f'{chr(65+i)}) '+re.sub(r'^\s*[A-Za-z][\)\.\-:]\s*','',o).strip() for i,o in enumerate(opts)]
+              q['id']=n
+          # reparo pontual de item em que C/D foram fundidos na extração
+          q=qs[1677]
+          if q.get('r')=='E' and len(q.get('o',[]))==4:
+              c=q['o'][2]; parts=re.split(r'\s+D\)[\u200b\s]*',c,maxsplit=1)
+              if len(parts)==2:
+                  q['o']=[q['o'][0],q['o'][1],'C) '+re.sub(r'^C\)\s*','',parts[0]),'D) '+parts[1],'E) '+re.sub(r'^D\)\s*','',q['o'][3])]
+          assert len(qs)==3000
+          assert all(2<=len(q['o'])<=5 for q in qs)
+          assert all(ord(q['r'])-65 < len(q['o']) for q in qs)
+          assert not any(re.search(r'Coment[aá]rio\s*:',o,re.I) for q in qs for o in q['o'])
+          assert all(all(o.startswith(chr(65+i)+')') for i,o in enumerate(q['o'])) for q in qs)
+          d['bank_version']=4004; d['updated_at']='2026-09-30'; d['questions']=qs
+          pathlib.Path('questoes.json').write_text(json.dumps(d,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
+          # interface: usa índice para letra e IDs normalizados
+          p=pathlib.Path('index.html'); s=p.read_text(encoding='utf-8')
+          s=s.replace("let a=st.ans[x.id],f=st.fav[x.id]","let id=String(x.id),a=st.ans[id],f=st.fav[id]")
+          s=s.replace("data-id=\"'+x.id+'\"","data-id=\"'+id+'\"")
+          s=s.replace("x.o.map(o=>{let l=o[0]","x.o.map((o,i)=>{let l=String.fromCharCode(65+i)")
+          s=s.replace("onclick=\"ans(\\''+x.id+'\\',\\''+l+'\\',this)\"","onclick=\"ans(\\''+id+'\\',\\''+l+'\\',this)\"")
+          s=s.replace("onclick=\"fav(\\''+x.id+'\\')\"","onclick=\"fav(\\''+id+'\\')\"")
+          s=s.replace("function ans(id,l,btn){if(st.ans[id])return;","function ans(id,l,btn){id=String(id);l=String(l).toUpperCase();if(st.ans[id])return;")
+          s=s.replace("var letter=buttons[i].textContent.trim().charAt(0);","var letter=buttons[i].getAttribute('data-letter');")
+          s=s.replace("function fav(id){st.fav[id]","function fav(id){id=String(id);st.fav[id]")
+          p.write_text(s,encoding='utf-8')
+          s=p.read_text(encoding='utf-8')
+          assert 'x.o.map(o=>{let l=o[0]' not in s
+          assert "getAttribute('data-letter')" in s
+          pathlib.Path('auditoria-reparo-v5.json').write_text(json.dumps({'status':'APROVADO','questoes':3000,'comentarios_em_alternativas':0,'alternativas_maximas':5,'gabaritos_fora_da_faixa':0,'marcacao':'A-E por indice; IDs normalizados'},ensure_ascii=False,indent=2),encoding='utf-8')
+          PY
+      - name: Commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add questoes.json index.html auditoria-reparo-v5.json
+          git commit -m "Repara banco comentarios e marcacao V5"
+          git push
