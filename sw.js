@@ -1,4 +1,4 @@
-const SHELL_CACHE='prf-shell-v33';const READING_CACHE='prf-reading';const SHELL=['./','./index.html','./estudos.html','./questoes.json','./manifest.webmanifest','./icon.svg','./pwa.js?v=33'];
+const SHELL_CACHE='prf-shell-v34';const READING_CACHE='prf-reading';const SHELL=['./','./index.html','./estudos.html?v=34','./questoes.json','./manifest.webmanifest','./icon.svg','./pwa.js?v=34'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(SHELL_CACHE).then(c=>c.addAll(SHELL))));
 self.addEventListener('activate',e=>e.waitUntil((async()=>{const reading=await caches.open(READING_CACHE),keys=await caches.keys();for(const name of keys){if(name.startsWith('prf-offline-')){const old=await caches.open(name);for(const req of await old.keys()){const u=new URL(req.url);if(u.pathname.includes('/prf-leitura-pdfs/')&&u.pathname.toLowerCase().endsWith('.pdf')){const res=await old.match(req);if(res)await reading.put(req,res.clone())}}await caches.delete(name)}else if(name.startsWith('prf-shell-')&&name!==SHELL_CACHE)await caches.delete(name)}await self.clients.claim()})()));
 async function reply(src,msg){if(src)src.postMessage(msg)}
